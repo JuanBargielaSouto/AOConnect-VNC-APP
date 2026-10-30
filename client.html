@@ -66,10 +66,8 @@ function connect() {
 
   rfb.viewOnly = false;
 
-  // Escalado automático de noVNC
   rfb.scaleViewport = false;
 
-  // Tu servidor no soporta resize
   rfb.resizeSession = false;
 
   rfb.clipViewport = false;
@@ -131,7 +129,6 @@ function updatePointerMode() {
 
   if (navigationMode) {
 
-    // Permite hacer scroll/pan
     canvas.style.pointerEvents = "none";
 
     viewport.style.touchAction = "pan-x pan-y";
@@ -139,7 +136,6 @@ function updatePointerMode() {
 
   } else {
 
-    // Permite interactuar con VNC
     canvas.style.pointerEvents = "auto";
 
     viewport.style.touchAction = "none";
@@ -165,6 +161,9 @@ window.setNavigationMode = function(enabled) {
 window.addEventListener("load", connect);
 
 </script>
+
+</body>
+</html>
 
 </body>
 </html>
