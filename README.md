@@ -226,17 +226,11 @@ For this example installation, port 3000 will be used.
 
 When lauched the first time, the backend itself will create the database.db and ask for the boss user credentials, which will be name and password. Use those to access the app the first time and start creating more users.
 
-## 6. Automating Startup with systemd
+## 6. Service Startup Automation
 
-To avoid manually starting the backend, noVNC and TigerVNC every time the Raspberry Pi is restarted, it is recommended to configure `systemd` services.
+To avoid manually starting the backend and VNC server every time the Raspberry Pi is restarted, it is recommended to configure `systemd` services.
 
-This allows the services to start automatically when the operating system boots and restart if an unexpected failure occurs.
-
-The following files must be created inside:
-
-```text
-/etc/systemd/system/
-```
+However, noVNC startup is handled separately through a shell script. This is because starting noVNC automatically during system boot may cause errors if the graphical display has not finished initializing.
 
 ### 6.1. Backend Service: backend.service
 
@@ -266,42 +260,9 @@ Environment=NODE_ENV=production
 WantedBy=multi-user.target
 ```
 
-This service automatically starts the Node.js server and allows it to restart if an error occurs.
+This service automatically starts the Node.js backend and restarts it if an error occurs.
 
-### 6.2. noVNC Service: novnc.service
-
-Create the file:
-
-```bash
-sudo nano /etc/systemd/system/novnc.service
-```
-
-Contents:
-
-```ini
-[Unit]
-Description=noVNC WebSocket Proxy
-After=network-online.target x0vncserver.service display-manager.service
-Wants=network-online.target x0vncserver.service
-
-[Service]
-Type=simple
-User=raspberry
-WorkingDirectory=/home/raspberry/AOTECH-VNC-APP-BACKEND/noVNC
-
-ExecStartPre=/bin/sleep 10
-ExecStart=/usr/bin/python3 /usr/bin/websockify --web /home/raspberry/AOTECH-VNC-APP-BACKEND/noVNC 6080 localhost:5900
-
-Restart=always
-RestartSec=3
-
-[Install]
-WantedBy=multi-user.target
-```
-
-This service starts noVNC and websockify, allowing WebSocket connections received on port 6080 to be forwarded to the local VNC server.
-
-### 6.3. TigerVNC Service: x0vncserver.service
+### 6.2. TigerVNC Service: x0vncserver.service
 
 Create the file:
 
@@ -331,31 +292,76 @@ WantedBy=graphical.target
 
 This service allows the Raspberry Pi's graphical desktop to be shared through TigerVNC.
 
-### 6.4. Enabling the Services
+### 6.3. noVNC Startup Script
 
-Once the three files have been created, reload the systemd configuration:
+Unlike the backend and TigerVNC services, noVNC should not be configured to start automatically during system boot.
+
+Starting noVNC too early may cause errors because the graphical display required by the VNC server may not yet be available.
+
+Instead, create a shell script to start the noVNC service manually once the Raspberry Pi has finished booting and the graphical environment is ready.
+
+Create the script:
+
+```bash
+nano ~/start-novnc.sh
+```
+
+Contents:
+
+```bash
+#!/bin/bash
+sudo systemctl start novnc.service
+```
+
+Make the script executable:
+
+```bash
+chmod +x ~/start-novnc.sh
+```
+
+After the Raspberry Pi has finished starting and the graphical desktop is available, execute:
+
+```bash
+./start-novnc.sh
+```
+
+This will start the noVNC service through systemd.
+
+**Important:** Do not enable `novnc.service` for automatic startup. It should only be started using the script after the graphical environment is ready.
+
+### 6.4. Enabling the Automatic Services
+
+Once the service files have been created, reload the systemd configuration:
 
 ```bash
 sudo systemctl daemon-reload
 ```
 
-Enable automatic startup:
+Enable automatic startup for the backend and TigerVNC:
 
 ```bash
 sudo systemctl enable backend.service
 sudo systemctl enable x0vncserver.service
-sudo systemctl enable novnc.service
 ```
 
-Start the services:
+Do not enable automatic startup for noVNC.
+
+Start the backend and TigerVNC services:
 
 ```bash
 sudo systemctl start backend.service
 sudo systemctl start x0vncserver.service
-sudo systemctl start novnc.service
 ```
 
-To check their status:
+Once the Raspberry Pi has completed its startup process and the graphical desktop is available, launch noVNC using:
+
+```bash
+./start-novnc.sh
+```
+
+### 6.5. Checking Service Status and Logs
+
+To check the status of the services:
 
 ```bash
 sudo systemctl status backend.service
@@ -371,7 +377,9 @@ sudo journalctl -u x0vncserver.service -f
 sudo journalctl -u novnc.service -f
 ```
 
-From this point onwards, the services will be configured to start automatically whenever the Raspberry Pi boots.
+With this configuration, the backend and TigerVNC start automatically when the Raspberry Pi boots, while noVNC is started separately after the graphical environment is ready.
+
+This approach helps prevent startup errors caused by noVNC attempting to establish a VNC connection before the graphical display is available.
 
 ## 7. Security Recommendations
 
