@@ -292,13 +292,48 @@ WantedBy=graphical.target
 
 This service allows the Raspberry Pi's graphical desktop to be shared through TigerVNC.
 
-### 6.3. noVNC Startup Script
+### 6.3. noVNC Service: novnc.service
 
-Unlike the backend and TigerVNC services, noVNC should not be configured to start automatically during system boot.
+Although noVNC will not be configured to start automatically during system boot, it still requires a systemd service definition so that it can be started manually through a shell script.
 
-Starting noVNC too early may cause errors because the graphical display required by the VNC server may not yet be available.
+Create the service file:
 
-Instead, create a shell script to start the noVNC service manually once the Raspberry Pi has finished booting and the graphical environment is ready.
+```bash
+sudo nano /etc/systemd/system/novnc.service
+```
+
+Contents:
+
+```ini
+[Unit]
+Description=noVNC WebSocket Proxy
+After=network-online.target x0vncserver.service display-manager.service
+Wants=network-online.target x0vncserver.service
+
+[Service]
+Type=simple
+User=raspberry
+WorkingDirectory=/home/raspberry/AOTECH-VNC-APP-BACKEND/noVNC
+
+ExecStartPre=/bin/sleep 10
+ExecStart=/usr/bin/python3 /usr/bin/websockify --web /home/raspberry/AOTECH-VNC-APP-BACKEND/noVNC 6080 localhost:5900
+
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+```
+
+This service starts noVNC and websockify, forwarding WebSocket connections received on port 6080 to the local VNC server.
+
+**Important:** Do not enable this service for automatic startup. It will be started manually after the graphical environment is ready.
+
+### 6.4. noVNC Startup Script
+
+Starting noVNC automatically during system boot may cause errors if the graphical display has not finished initializing.
+
+To avoid this issue, create a shell script that starts the noVNC service manually.
 
 Create the script:
 
@@ -319,7 +354,7 @@ Make the script executable:
 chmod +x ~/start-novnc.sh
 ```
 
-After the Raspberry Pi has finished starting and the graphical desktop is available, execute:
+After the Raspberry Pi has finished booting and the graphical desktop is available, execute:
 
 ```bash
 ./start-novnc.sh
@@ -327,11 +362,9 @@ After the Raspberry Pi has finished starting and the graphical desktop is availa
 
 This will start the noVNC service through systemd.
 
-**Important:** Do not enable `novnc.service` for automatic startup. It should only be started using the script after the graphical environment is ready.
+### 6.5. Enabling the Automatic Services
 
-### 6.4. Enabling the Automatic Services
-
-Once the service files have been created, reload the systemd configuration:
+Once all three service files have been created, reload the systemd configuration:
 
 ```bash
 sudo systemctl daemon-reload
@@ -346,6 +379,12 @@ sudo systemctl enable x0vncserver.service
 
 Do not enable automatic startup for noVNC.
 
+If it was previously enabled, disable it:
+
+```bash
+sudo systemctl disable novnc.service
+```
+
 Start the backend and TigerVNC services:
 
 ```bash
@@ -353,13 +392,13 @@ sudo systemctl start backend.service
 sudo systemctl start x0vncserver.service
 ```
 
-Once the Raspberry Pi has completed its startup process and the graphical desktop is available, launch noVNC using:
+Once the graphical desktop is available, start noVNC using:
 
 ```bash
 ./start-novnc.sh
 ```
 
-### 6.5. Checking Service Status and Logs
+### 6.6. Checking Service Status and Logs
 
 To check the status of the services:
 
@@ -377,9 +416,7 @@ sudo journalctl -u x0vncserver.service -f
 sudo journalctl -u novnc.service -f
 ```
 
-With this configuration, the backend and TigerVNC start automatically when the Raspberry Pi boots, while noVNC is started separately after the graphical environment is ready.
-
-This approach helps prevent startup errors caused by noVNC attempting to establish a VNC connection before the graphical display is available.
+With this configuration, the backend and TigerVNC start automatically when the Raspberry Pi boots, while noVNC is started separately using the shell script once the graphical environment is ready.
 
 ## 7. Security Recommendations
 
