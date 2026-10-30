@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>VNC Client</title>
+
+<meta name="viewport"
+      content="width=device-width,initial-scale=1,user-scalable=no" />
+
+<style>
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: black;
+}
+
+#viewport {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background: black;
+}
+
+#screen {
+  width: 100%;
+  height: 100%;
+  background: black;
+}
+
+canvas {
+  display: block;
+}
+</style>
+</head>
+
+<body>
+
+<div id="viewport">
+  <div id="screen"></div>
+</div>
+
+<script type="module">
+import RFB from './core/rfb.js';
+
+let rfb = null;
+let navigationMode = false;
+
+const screen = document.getElementById("screen");
+const viewport = document.getElementById("viewport");
+
+// CONNECT
+
+function connect() {
+
+  const host = window.location.hostname;
+  const port = window.location.port || "6080";
+
+  const url = `ws://${host}:${port}/websockify`;
+
+  rfb = new RFB(screen, url, {
+    shared: true
+  });
+
+  window.rfb = rfb;
+
+  rfb.viewOnly = false;
+
+  // Escalado automático de noVNC
+  rfb.scaleViewport = false;
+
+  // Tu servidor no soporta resize
+  rfb.resizeSession = false;
+
+  rfb.clipViewport = false;
+
+  rfb.focusOnClick = true;
+
+  rfb.addEventListener("connect", () => {
+    console.log("CONNECTED");
+
+    setTimeout(() => {
+      updatePointerMode();
+    }, 500);
+  });
+
+  rfb.addEventListener("disconnect", () => {
+    console.log("DISCONNECTED");
+    setTimeout(connect, 2000);
+  });
+}
+
+
+//FLUTTER KEYBOARD
+
+window.sendTextToVNC = function(key) {
+
+  if (!rfb) return;
+
+  if (key === "__BACKSPACE__") {
+    rfb.sendKey(0xff08);
+    return;
+  }
+
+  if (key === "Enter") {
+    rfb.sendKey(0xff0d);
+    return;
+  }
+
+  if (key.length === 1) {
+    rfb.sendKey(key.charCodeAt(0));
+  }
+};
+
+
+function getCanvas() {
+  return screen.querySelector("canvas");
+}
+
+
+// NAVIGATION MODE
+
+function updatePointerMode() {
+
+  const canvas = getCanvas();
+
+  if (!canvas) {
+    console.log("Canvas no listo");
+    return;
+  }
+
+  if (navigationMode) {
+
+    // Permite hacer scroll/pan
+    canvas.style.pointerEvents = "none";
+
+    viewport.style.touchAction = "pan-x pan-y";
+    viewport.style.overflow = "auto";
+
+  } else {
+
+    // Permite interactuar con VNC
+    canvas.style.pointerEvents = "auto";
+
+    viewport.style.touchAction = "none";
+    viewport.style.overflow = "hidden";
+  }
+}
+
+
+// API FLUTTER
+
+window.setNavigationMode = function(enabled) {
+
+  navigationMode = enabled;
+
+  console.log("NAV MODE:", enabled);
+
+  updatePointerMode();
+};
+
+
+// INIT
+
+window.addEventListener("load", connect);
+
+</script>
+
+</body>
+</html>
