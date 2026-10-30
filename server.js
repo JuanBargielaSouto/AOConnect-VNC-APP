@@ -10,7 +10,7 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// Codigo para HASH
+// Code for HASH
 const SECRET = process.env.JWT_SECRET;
 if (!SECRET) {
   console.error("JWT_SECRET no definida en .env");
@@ -61,25 +61,25 @@ function ensureBossUser() {
       async (err, row) => {
 
         if (err) {
-          console.error("Error comprobando boss:", err);
+          console.error("Error checking boss:", err);
           reject(err);
           return;
         }
 
         // Más de un boss -> error
         if (row.count > 1) {
-          reject(new Error("Existe más de un usuario boss"));
+          reject(new Error("Error, more than 1 boss user found"));
           return;
         }
 
         // Ya existe boss
         if (row.count === 1) {
-          console.log("Usuario boss encontrado");
+          console.log("User boss not found");
           resolve();
           return;
         }
 
-        // ================= CREAR BOSS =================
+        // ================= CREATE BOSS =================
 
         console.log("No existe usuario boss.");
         console.log("Crear usuario boss inicial:");
@@ -109,7 +109,7 @@ function ensureBossUser() {
 			    break;
 		  }
 
-		  console.log("El username debe tener al menos 4 caracteres");
+		  console.log("Username must have at least 4 characters");
 		}
 
 		// PASSWORD
@@ -121,7 +121,7 @@ function ensureBossUser() {
 		    break;
 		  }
 
-		  console.log("La contraseña debe tener al menos 6 caracteres");
+		  console.log("Password must be at least 6 characters long");
 		}
 	          const hash = await bcrypt.hash(password, 10);
 
@@ -138,7 +138,7 @@ function ensureBossUser() {
                 return;
               }
 
-              console.log("Usuario boss creado correctamente");
+              console.log("Boss user created correctly");
 
               resolve();
             }
@@ -195,7 +195,7 @@ function auth(req, res, next) {
 //Checking privileges
 function isBoss(req, res, next) {
   if (req.user.role !== 'boss') {
-    return res.status(403).send("Acceso denegado");
+    return res.status(403).send("Access denied");
   }
   next();
 }
@@ -205,10 +205,11 @@ function isAdminOrBoss(req, res, next) {
     return next();
   }
 
-  return res.status(403).send("Acceso denegado");
+  return res.status(403).send("Access denied");
 }
 
-//Cambiar contraseña
+//Change Password
+
 app.put('/user/profile', auth, async (req, res) => {
   const userId = req.user.userId;
   const { password } = req.body;
@@ -226,14 +227,14 @@ app.put('/user/profile', auth, async (req, res) => {
       function (err) {
         if (err) {
           console.error(err);
-          return res.status(500).send("Error al actualizar contraseña");
+          return res.status(500).send("Error updating password");
         }
 
         if (this.changes === 0) {
-          return res.status(404).send("Usuario no encontrado");
+          return res.status(404).send("User not found");
         }
 
-        res.send("Contraseña actualizada");
+        res.send("Password updated");
       }
     );
   } catch (err) {
@@ -242,7 +243,8 @@ app.put('/user/profile', auth, async (req, res) => {
 });
 // ================= DEVICES =================
 
-// Añadir dispositivo (para pruebas)
+// Add device
+
 app.post('/devices', auth, isAdminOrBoss, (req, res) => {
   const { name, ip, port } = req.body;
 
@@ -264,7 +266,8 @@ app.post('/devices', auth, isAdminOrBoss, (req, res) => {
   );
 });
 
-// Obtener dispositivos de tu usuario
+// Get devices for logged user
+
 app.get('/devices', auth, (req, res) => {
   db.all(
     `
@@ -279,7 +282,7 @@ app.get('/devices', auth, (req, res) => {
   );
 });
 
-//Quitar dispositivo
+//Delete device
 app.delete('/devices/:id', auth, isBoss , (req, res) => {
   const deviceId = req.params.id;
 
@@ -289,34 +292,18 @@ app.delete('/devices/:id', auth, isBoss , (req, res) => {
   res.send("Eliminado");
 });
 
-//Ver todos los dispositivos
-//app.get('/devices', auth, (req, res) => {
-
-//  if (req.user.role === 'admin') {
-//    db.all(`SELECT * FROM devices`, [], (err, rows) => {
-//      return res.json(rows);
-//    });
-//  }
-
-//  db.all(`
-//    SELECT devices.* FROM devices
-//    JOIN user_devices ON devices.id = user_devices.device_id
-//    WHERE user_devices.user_id = ?
-//  `, [req.user.id], (err, rows) => {
-//    res.json(rows);
-//  });
-//});
-
 // ================= USERS =================
 
-//Obtener todos los dispositivos
+//Get all devices
+
 app.get('/admin/devices', auth, isAdminOrBoss, (req, res) => {
   db.all(`SELECT * FROM devices`, [], (err, rows) => {
     res.json(rows);
   });
 });
 
-//Obtener dispositivos de 1 usuario
+//Get devices from 1 user
+
 app.get('/admin/user-devices/:id', auth, isAdminOrBoss, (req, res) => {
   const userId = req.params.id;
 
@@ -329,11 +316,12 @@ app.get('/admin/user-devices/:id', auth, isAdminOrBoss, (req, res) => {
   });
 });
 
-//Añadir usuario
+//Add user
+
 app.post('/admin/users', auth, isAdminOrBoss , async (req, res) => {
   const { username, password, role } = req.body;
 
-  // VALIDACIONES
+  // VALIDATIONS
   if (!username || username.trim().length < 4) {
     return res.status(400).send("El usuario debe tener al menos 4 caracteres");
   }
@@ -367,7 +355,8 @@ app.post('/admin/users', auth, isAdminOrBoss , async (req, res) => {
   }
 });
 
-//Eliminar usuario
+//Delete user
+
 app.delete('/admin/users/:id', auth, isBoss, (req, res) => {
   const id = req.params.id;
 
@@ -377,7 +366,8 @@ app.delete('/admin/users/:id', auth, isBoss, (req, res) => {
   res.send("Usuario eliminado");
 });
 
-//Asignar dispositivos a usuarios
+//Assign devices to users
+
 app.post('/admin/assign', auth, isAdminOrBoss, (req, res) => {
   const { user_id, device_id } = req.body;
 
@@ -389,7 +379,8 @@ app.post('/admin/assign', auth, isAdminOrBoss, (req, res) => {
   res.send("Asignado");
 });
 
-//Desasignar dispositivos a usuarios
+//Unassign devices to users
+
 app.post('/admin/unassign', auth, isAdminOrBoss , (req, res) => {
   const { user_id, device_id } = req.body;
 
@@ -401,7 +392,8 @@ app.post('/admin/unassign', auth, isAdminOrBoss , (req, res) => {
   res.send("Desasignado");
 });
 
-//Ver todos los usuarios
+//See all users
+
 app.get('/admin/users', auth, isAdminOrBoss, (req, res) => {
   db.all(`SELECT id, username, role FROM users`, [], (err, rows) => {
     res.json(rows);
@@ -417,7 +409,7 @@ async function startServer() {
     await ensureBossUser();
 
     app.listen(3000, () => {
-      console.log("Servidor corriendo en http://localhost:3000");
+      console.log("Server running on http://localhost:3000");
     });
 
   } catch (err) {
